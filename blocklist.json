@@ -1,0 +1,8 @@
+{
+  "domains": [
+    "evil-tracker.com",
+    "ad-malware-domain.net",
+    "suspicious-analytics.io",
+    "c2-server.example.org"
+  ]
+}
