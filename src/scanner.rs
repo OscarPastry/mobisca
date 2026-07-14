@@ -20,7 +20,7 @@ pub struct SdksConfig {
     pub sdks: Vec<SdkDef>,
 }
 
-pub fn process_apk(apk_path: &Path) -> Result<()> {
+pub fn process_apk(apk_path: &Path, github_token: Option<&String>) -> Result<()> {
     println!("Extracting and parsing APK: {:?}", apk_path);
 
     // 1. Load SDK definitions
@@ -75,8 +75,14 @@ pub fn process_apk(apk_path: &Path) -> Result<()> {
                     cves_text = format!(" [{} known CVEs]", cves.len());
                 }
             }
+            
+            let mut health_text = String::new();
+            if let Some(repo) = &sdk.github_repo {
+                let health = crate::github::check_health(repo, github_token);
+                health_text = format!(" [Health: {:?}]", health);
+            }
 
-            println!("- {}{} (Namespace: {})", sdk.name, cves_text, sdk.namespace);
+            println!("- {}{}{} (Namespace: {})", sdk.name, cves_text, health_text, sdk.namespace);
         }
     }
     println!("----------------------------");

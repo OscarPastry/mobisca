@@ -5,6 +5,7 @@ use std::path::PathBuf;
 mod scanner;
 mod models;
 mod osv;
+mod github;
 
 /// Mobile SDK Supply-Chain Risk Scanner
 #[derive(Parser)]
@@ -63,7 +64,7 @@ fn main() -> Result<()> {
                 println!("(GitHub token provided for elevated rate limits)");
             }
 
-            scanner::process_apk(apk_path)?;
+            scanner::process_apk(apk_path, github_token.as_ref())?;
         }
         Commands::Diff {
             baseline,
