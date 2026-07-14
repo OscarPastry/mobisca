@@ -1,0 +1,53 @@
+{
+  "sdks": [
+    {
+      "namespace": "com.google.firebase",
+      "name": "Firebase Core",
+      "vendor": "Google",
+      "category": "Analytics/Backend",
+      "github_repo": "firebase/firebase-android-sdk"
+    },
+    {
+      "namespace": "com.google.android.gms",
+      "name": "Google Play Services",
+      "vendor": "Google",
+      "category": "Platform",
+      "github_repo": null
+    },
+    {
+      "namespace": "com.facebook.ads",
+      "name": "Facebook Audience Network",
+      "vendor": "Meta",
+      "category": "Ads",
+      "github_repo": null
+    },
+    {
+      "namespace": "com.appsflyer",
+      "name": "AppsFlyer",
+      "vendor": "AppsFlyer",
+      "category": "Analytics",
+      "github_repo": "AppsFlyerSDK/AppsFlyerFramework"
+    },
+    {
+      "namespace": "com.squareup.okhttp",
+      "name": "OkHttp",
+      "vendor": "Square",
+      "category": "Networking",
+      "github_repo": "square/okhttp"
+    },
+    {
+      "namespace": "com.mixpanel.android",
+      "name": "Mixpanel",
+      "vendor": "Mixpanel",
+      "category": "Analytics",
+      "github_repo": "mixpanel/mixpanel-android"
+    },
+    {
+      "namespace": "io.sentry",
+      "name": "Sentry",
+      "vendor": "Sentry",
+      "category": "Crash Reporting",
+      "github_repo": "getsentry/sentry-java"
+    }
+  ]
+}

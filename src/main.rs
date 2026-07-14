@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 mod scanner;
+mod models;
 
 /// Mobile SDK Supply-Chain Risk Scanner
 #[derive(Parser)]
