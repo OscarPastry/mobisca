@@ -2,6 +2,8 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+mod scanner;
+
 /// Mobile SDK Supply-Chain Risk Scanner
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -21,6 +23,10 @@ enum Commands {
         /// Output format in JSON
         #[arg(long)]
         json: bool,
+
+        /// Optional GitHub Personal Access Token to avoid API rate limits
+        #[arg(long, env = "GITHUB_TOKEN")]
+        github_token: Option<String>,
     },
     /// Diff two APKs for supply-chain risk drift
     Diff {
@@ -35,6 +41,10 @@ enum Commands {
         /// Output format in JSON
         #[arg(long)]
         json: bool,
+
+        /// Optional GitHub Personal Access Token to avoid API rate limits
+        #[arg(long, env = "GITHUB_TOKEN")]
+        github_token: Option<String>,
     },
 }
 
@@ -42,25 +52,32 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Scan { apk_path, json } => {
-            println!("hello");
+        Commands::Scan { apk_path, json, github_token } => {
             println!("Scanning APK at: {:?}", apk_path);
             if *json {
                 println!("(JSON output mode enabled)");
             }
+            if let Some(_) = github_token {
+                println!("(GitHub token provided for elevated rate limits)");
+            }
+
+            scanner::process_apk(apk_path)?;
         }
         Commands::Diff {
             baseline,
             current,
             json,
+            github_token,
         } => {
-            println!("hello");
             println!(
                 "Diffing baseline: {:?} against current: {:?}",
                 baseline, current
             );
             if *json {
                 println!("(JSON output mode enabled)");
+            }
+            if let Some(_) = github_token {
+                println!("(GitHub token provided for elevated rate limits)");
             }
         }
     }
