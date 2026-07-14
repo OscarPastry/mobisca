@@ -1,5 +1,4 @@
 use goblin::Object;
-use regex::Regex;
 use std::collections::HashSet;
 
 #[derive(Debug)]
@@ -61,9 +60,9 @@ pub fn triage_elf(file_name: String, bytes: &[u8]) -> Option<ElfTriageResult> {
     }
 
     // 3. Extract network strings (URLs/IPs)
-    let (urls, ips) = extract_network_strings(bytes);
-    result.extracted_urls = urls;
-    result.extracted_ips = ips;
+    let (urls, ips) = crate::network::extract_network_strings(bytes);
+    result.extracted_urls = urls.into_iter().collect();
+    result.extracted_ips = ips.into_iter().collect();
 
     Some(result)
 }
@@ -87,28 +86,4 @@ fn calculate_entropy(data: &[u8]) -> f64 {
     entropy
 }
 
-fn extract_network_strings(data: &[u8]) -> (Vec<String>, Vec<String>) {
-    let mut urls = HashSet::new();
-    let mut ips = HashSet::new();
 
-    // Fast, simple regex for MVP (scanning lossy string over the binary).
-    // In production, this would only target `.rodata` and `.data` sections for efficiency.
-    let text = String::from_utf8_lossy(data);
-
-    let url_regex = Regex::new(r"https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/[a-zA-Z0-9.-]*)*").unwrap();
-    let ip_regex = Regex::new(r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b").unwrap();
-
-    for cap in url_regex.captures_iter(&text) {
-        urls.insert(cap[0].to_string());
-    }
-
-    for cap in ip_regex.captures_iter(&text) {
-        // filter out obvious false positives like version numbers
-        let ip = &cap[0];
-        if !ip.starts_with("0.") && !ip.starts_with("255.") {
-            ips.insert(ip.to_string());
-        }
-    }
-
-    (urls.into_iter().collect(), ips.into_iter().collect())
-}

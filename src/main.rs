@@ -8,6 +8,7 @@ mod osv;
 mod github;
 mod permissions;
 mod elf_triage;
+mod network;
 
 /// Mobile SDK Supply-Chain Risk Scanner
 #[derive(Parser)]

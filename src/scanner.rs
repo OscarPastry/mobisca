@@ -23,12 +23,16 @@ pub struct SdksConfig {
 pub fn process_apk(apk_path: &Path, github_token: Option<&String>) -> Result<()> {
     println!("Extracting and parsing APK: {:?}", apk_path);
 
-    // 1. Load SDK definitions
+    // 1. Load SDK definitions and blocklist
     let sdks_json = std::fs::read_to_string("sdks.json")
         .context("Failed to read sdks.json seed file")?;
     let config: SdksConfig = serde_json::from_str(&sdks_json)
         .context("Failed to parse sdks.json")?;
     let mut found_sdks = std::collections::HashSet::new();
+    
+    let blocklist = crate::network::load_blocklist();
+    let mut global_urls = std::collections::HashSet::new();
+    let mut global_ips = std::collections::HashSet::new();
 
     // 2. Parse AXML (ensure it's valid)
     match rusty_axml::parse_from_apk(apk_path) {
@@ -48,6 +52,10 @@ pub fn process_apk(apk_path: &Path, github_token: Option<&String>) -> Result<()>
     if !app_permissions.is_empty() {
         println!("App requests {} sensitive permissions.", app_permissions.len());
     }
+    
+    let (axml_urls, axml_ips) = crate::network::extract_network_strings(&manifest_bytes);
+    global_urls.extend(axml_urls);
+    global_ips.extend(axml_ips);
 
     let mut elf_triage_results = Vec::new();
 
@@ -69,6 +77,10 @@ pub fn process_apk(apk_path: &Path, github_token: Option<&String>) -> Result<()>
                     found_sdks.insert(sdk.name.clone());
                 }
             }
+            
+            let (dex_urls, dex_ips) = crate::network::extract_network_strings(&dex_bytes);
+            global_urls.extend(dex_urls);
+            global_ips.extend(dex_ips);
         } else if file.name().ends_with(".so") && file.name().contains("lib/") {
             let mut so_bytes = Vec::new();
             file.read_to_end(&mut so_bytes)?;
@@ -125,9 +137,25 @@ pub fn process_apk(apk_path: &Path, github_token: Option<&String>) -> Result<()>
             if !res.extracted_urls.is_empty() || !res.extracted_ips.is_empty() {
                 println!("  [i] Extracted {} URLs, {} IPs", res.extracted_urls.len(), res.extracted_ips.len());
             }
+            
+            let urls_set = res.extracted_urls.iter().cloned().collect();
+            let ips_set = res.extracted_ips.iter().cloned().collect();
+            let flagged = crate::network::check_against_blocklist(&urls_set, &ips_set, &blocklist);
+            if !flagged.is_empty() {
+                println!("  [!] Blocklisted Endpoints in binary: {:?}", flagged);
+            }
         }
     }
     println!("----------------------------------");
+
+    println!("\n--- Global Network Endpoints ---");
+    let flagged_global = crate::network::check_against_blocklist(&global_urls, &global_ips, &blocklist);
+    if !flagged_global.is_empty() {
+        println!("[!] Blocklisted Endpoints found in DEX/Manifest: {:?}", flagged_global);
+    } else {
+        println!("Extracted {} URLs and {} IPs globally, none on blocklist.", global_urls.len(), global_ips.len());
+    }
+    println!("--------------------------------");
 
     Ok(())
 }
