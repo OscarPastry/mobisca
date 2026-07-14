@@ -30,15 +30,24 @@ pub fn process_apk(apk_path: &Path, github_token: Option<&String>) -> Result<()>
         .context("Failed to parse sdks.json")?;
     let mut found_sdks = std::collections::HashSet::new();
 
-    // 2. Parse AXML
+    // 2. Parse AXML (ensure it's valid)
     match rusty_axml::parse_from_apk(apk_path) {
         Ok(_) => println!("Successfully parsed AndroidManifest.xml!"),
         Err(e) => println!("Warning: Failed to parse AXML: {:?}", e),
     }
 
-    // 3. Unzip and scan .dex files for namespaces
-    let file = File::open(apk_path).context("Failed to open APK file")?;
+    let mut file = File::open(apk_path).context("Failed to open APK file")?;
     let mut archive = ZipArchive::new(file).context("Failed to read ZIP archive")?;
+
+    // 2.5 Extract App Permissions from AndroidManifest.xml
+    let mut manifest_bytes = Vec::new();
+    if let Ok(mut manifest_file) = archive.by_name("AndroidManifest.xml") {
+        manifest_file.read_to_end(&mut manifest_bytes)?;
+    }
+    let app_permissions = crate::permissions::get_sensitive_permissions_in_app(&manifest_bytes);
+    if !app_permissions.is_empty() {
+        println!("App requests {} sensitive permissions.", app_permissions.len());
+    }
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
@@ -81,8 +90,14 @@ pub fn process_apk(apk_path: &Path, github_token: Option<&String>) -> Result<()>
                 let health = crate::github::check_health(repo, github_token);
                 health_text = format!(" [Health: {:?}]", health);
             }
+            
+            let creep_flags = crate::permissions::check_scope_creep(&sdk.category, &app_permissions);
+            let mut creep_text = String::new();
+            if !creep_flags.is_empty() {
+                creep_text = format!(" [Scope Creep: {} flags]", creep_flags.len());
+            }
 
-            println!("- {}{}{} (Namespace: {})", sdk.name, cves_text, health_text, sdk.namespace);
+            println!("- {}{}{}{} (Namespace: {})", sdk.name, cves_text, health_text, creep_text, sdk.namespace);
         }
     }
     println!("----------------------------");

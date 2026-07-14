@@ -6,6 +6,7 @@ mod scanner;
 mod models;
 mod osv;
 mod github;
+mod permissions;
 
 /// Mobile SDK Supply-Chain Risk Scanner
 #[derive(Parser)]
