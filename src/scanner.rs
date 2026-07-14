@@ -49,6 +49,8 @@ pub fn process_apk(apk_path: &Path, github_token: Option<&String>) -> Result<()>
         println!("App requests {} sensitive permissions.", app_permissions.len());
     }
 
+    let mut elf_triage_results = Vec::new();
+
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
         if file.name().ends_with(".dex") {
@@ -66,6 +68,12 @@ pub fn process_apk(apk_path: &Path, github_token: Option<&String>) -> Result<()>
                 if dex_str.contains(dot_namespace) || dex_str.contains(&slash_namespace) {
                     found_sdks.insert(sdk.name.clone());
                 }
+            }
+        } else if file.name().ends_with(".so") && file.name().contains("lib/") {
+            let mut so_bytes = Vec::new();
+            file.read_to_end(&mut so_bytes)?;
+            if let Some(res) = crate::elf_triage::triage_elf(file.name().to_string(), &so_bytes) {
+                elf_triage_results.push(res);
             }
         }
     }
@@ -101,6 +109,25 @@ pub fn process_apk(apk_path: &Path, github_token: Option<&String>) -> Result<()>
         }
     }
     println!("----------------------------");
+
+    println!("\n--- Native Binary (.so) Triage ---");
+    if elf_triage_results.is_empty() {
+        println!("No native libraries found.");
+    } else {
+        for res in elf_triage_results {
+            println!("File: {}", res.file_name);
+            if !res.suspicious_imports.is_empty() {
+                println!("  [!] Suspicious Imports: {:?}", res.suspicious_imports);
+            }
+            if !res.high_entropy_sections.is_empty() {
+                println!("  [!] High Entropy Sections (Packed?): {:?}", res.high_entropy_sections);
+            }
+            if !res.extracted_urls.is_empty() || !res.extracted_ips.is_empty() {
+                println!("  [i] Extracted {} URLs, {} IPs", res.extracted_urls.len(), res.extracted_ips.len());
+            }
+        }
+    }
+    println!("----------------------------------");
 
     Ok(())
 }
