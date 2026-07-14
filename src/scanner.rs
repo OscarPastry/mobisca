@@ -22,9 +22,7 @@ pub struct SdksConfig {
 
 use crate::models::{AppRiskProfile, RiskConfig, SdkRiskProfile};
 
-pub fn process_apk(apk_path: &Path, github_token: Option<&String>) -> Result<()> {
-    println!("Extracting and parsing APK: {:?}", apk_path);
-
+pub fn scan_apk(apk_path: &Path, github_token: Option<&String>) -> Result<AppRiskProfile> {
     // 1. Load configs
     let sdks_json = std::fs::read_to_string("sdks.json")
         .context("Failed to read sdks.json seed file")?;
@@ -42,10 +40,7 @@ pub fn process_apk(apk_path: &Path, github_token: Option<&String>) -> Result<()>
     let mut global_ips = std::collections::HashSet::new();
 
     // 2. Parse AXML (ensure it's valid)
-    match rusty_axml::parse_from_apk(apk_path) {
-        Ok(_) => println!("Successfully parsed AndroidManifest.xml!"),
-        Err(e) => println!("Warning: Failed to parse AXML: {:?}", e),
-    }
+    let _ = rusty_axml::parse_from_apk(apk_path);
 
     let mut file = File::open(apk_path).context("Failed to open APK file")?;
     let mut archive = ZipArchive::new(file).context("Failed to read ZIP archive")?;
@@ -56,9 +51,6 @@ pub fn process_apk(apk_path: &Path, github_token: Option<&String>) -> Result<()>
         manifest_file.read_to_end(&mut manifest_bytes)?;
     }
     let app_permissions = crate::permissions::get_sensitive_permissions_in_app(&manifest_bytes);
-    if !app_permissions.is_empty() {
-        println!("App requests {} sensitive permissions.", app_permissions.len());
-    }
     
     let (axml_urls, axml_ips) = crate::network::extract_network_strings(&manifest_bytes);
     global_urls.extend(axml_urls);
@@ -97,76 +89,58 @@ pub fn process_apk(apk_path: &Path, github_token: Option<&String>) -> Result<()>
         }
     }
     
-    let mut app_profile = AppRiskProfile::new(apk_path.to_string_lossy().to_string(), Vec::new());
+    let mut app_profile = AppRiskProfile::new(
+        apk_path.to_string_lossy().to_string(), 
+        Vec::new(),
+        app_permissions.iter().cloned().collect(),
+        Vec::new() // Placeholder, updated later
+    );
     
-    println!("\n--- Composite Risk Scores ---");
-    if found_sdks.is_empty() {
-        println!("No known SDKs detected.");
-    } else {
-        for sdk_name in found_sdks {
-            let sdk_def = config.sdks.iter().find(|s| s.name == sdk_name).unwrap();
-            let mut profile = SdkRiskProfile::new(
-                sdk_def.name.clone(),
-                sdk_def.vendor.clone(),
-                sdk_def.namespace.clone(),
-            );
-            
-            if let Some(pkg) = &sdk_def.maven_package {
-                profile.cves = crate::osv::lookup_vulnerabilities(pkg);
-            }
-            if let Some(repo) = &sdk_def.github_repo {
-                profile.maintenance_status = crate::github::check_health(repo, github_token);
-            }
-            
-            profile.permission_creep_flags = crate::permissions::check_scope_creep(&sdk_def.category, &app_permissions);
-            
-            // For MVP, we attribute native binary flags based on naming heuristic
-            for res in &elf_triage_results {
-                let name_lower = res.file_name.to_lowercase();
-                // simple heuristic: does the .so name contain the vendor or sdk name?
-                let vendor_lower = sdk_def.vendor.to_lowercase();
-                if name_lower.contains(&vendor_lower) || name_lower.contains(&sdk_def.name.to_lowercase()) {
-                    profile.suspicious_binary_imports.extend(res.suspicious_imports.clone());
-                    profile.packed_binaries.extend(res.high_entropy_sections.clone());
-                    
-                    let urls_set = res.extracted_urls.iter().cloned().collect();
-                    let ips_set = res.extracted_ips.iter().cloned().collect();
-                    let flagged = crate::network::check_against_blocklist(&urls_set, &ips_set, &blocklist);
-                    profile.malicious_endpoints.extend(flagged);
-                }
-            }
-            
-            // Also append global endpoints to all profiles if they hit blocklist for MVP
-            // (In production, global flags might just sit on the App profile)
-            
-            profile.calculate_score(&risk_config);
-            
-            println!("- {} (Score: {}/100)", profile.name, profile.risk_score);
-            if !profile.cves.is_empty() {
-                println!("    * CVEs: {}", profile.cves.len());
-            }
-            if profile.maintenance_status != crate::models::MaintenanceStatus::Active && profile.maintenance_status != crate::models::MaintenanceStatus::Unknown {
-                println!("    * Health: {:?}", profile.maintenance_status);
-            }
-            if !profile.permission_creep_flags.is_empty() {
-                println!("    * Scope Creep: {} flags", profile.permission_creep_flags.len());
-            }
-            if !profile.suspicious_binary_imports.is_empty() || !profile.packed_binaries.is_empty() {
-                println!("    * Native Binary Risks Detected");
-            }
-            if !profile.malicious_endpoints.is_empty() {
-                println!("    * Malicious Endpoints: {}", profile.malicious_endpoints.len());
-            }
-            
-            app_profile.sdks.push(profile);
+    for sdk_name in found_sdks {
+        let sdk_def = config.sdks.iter().find(|s| s.name == sdk_name).unwrap();
+        let mut profile = SdkRiskProfile::new(
+            sdk_def.name.clone(),
+            sdk_def.vendor.clone(),
+            sdk_def.namespace.clone(),
+        );
+        
+        if let Some(pkg) = &sdk_def.maven_package {
+            profile.cves = crate::osv::lookup_vulnerabilities(pkg);
         }
+        if let Some(repo) = &sdk_def.github_repo {
+            profile.maintenance_status = crate::github::check_health(repo, github_token);
+        }
+        
+        profile.permission_creep_flags = crate::permissions::check_scope_creep(&sdk_def.category, &app_permissions);
+        
+        // For MVP, we attribute native binary flags based on naming heuristic
+        for res in &elf_triage_results {
+            let name_lower = res.file_name.to_lowercase();
+            let vendor_lower = sdk_def.vendor.to_lowercase();
+            if name_lower.contains(&vendor_lower) || name_lower.contains(&sdk_def.name.to_lowercase()) {
+                profile.suspicious_binary_imports.extend(res.suspicious_imports.clone());
+                profile.packed_binaries.extend(res.high_entropy_sections.clone());
+                
+                let urls_set = res.extracted_urls.iter().cloned().collect();
+                let ips_set = res.extracted_ips.iter().cloned().collect();
+                let flagged = crate::network::check_against_blocklist(&urls_set, &ips_set, &blocklist);
+                profile.malicious_endpoints.extend(flagged);
+            }
+        }
+        
+        profile.calculate_score(&risk_config);
+        app_profile.sdks.push(profile);
     }
     
+    let flagged_global = crate::network::check_against_blocklist(&global_urls, &global_ips, &blocklist);
+    
     // Recalculate App score
-    app_profile = AppRiskProfile::new(apk_path.to_string_lossy().to_string(), app_profile.sdks);
-    println!("-----------------------------");
-    println!("Overall App Risk Score: {}/100", app_profile.total_risk_score);
-    println!("=============================");
+    app_profile = AppRiskProfile::new(
+        apk_path.to_string_lossy().to_string(), 
+        app_profile.sdks,
+        app_profile.global_permissions,
+        flagged_global
+    );
 
-    Ok(())
+    Ok(app_profile)
 }

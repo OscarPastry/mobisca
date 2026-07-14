@@ -103,10 +103,12 @@ pub struct AppRiskProfile {
     pub app_path: String,
     pub sdks: Vec<SdkRiskProfile>,
     pub total_risk_score: u32,
+    pub global_permissions: Vec<String>,
+    pub global_malicious_endpoints: Vec<String>,
 }
 
 impl AppRiskProfile {
-    pub fn new(app_path: String, sdks: Vec<SdkRiskProfile>) -> Self {
+    pub fn new(app_path: String, sdks: Vec<SdkRiskProfile>, global_permissions: Vec<String>, global_malicious_endpoints: Vec<String>) -> Self {
         // App score could be average of SDKs, or max, or simple sum.
         // A simple max risk score across all SDKs highlights the weakest link.
         let total_risk_score = sdks.iter().map(|s| s.risk_score).max().unwrap_or(0);
@@ -115,6 +117,8 @@ impl AppRiskProfile {
             app_path,
             sdks,
             total_risk_score,
+            global_permissions,
+            global_malicious_endpoints,
         }
     }
 }

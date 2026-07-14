@@ -67,7 +67,8 @@ fn main() -> Result<()> {
                 println!("(GitHub token provided for elevated rate limits)");
             }
 
-            scanner::process_apk(apk_path, github_token.as_ref())?;
+            let profile = scanner::scan_apk(apk_path, github_token.as_ref())?;
+            print_report(&profile);
         }
         Commands::Diff {
             baseline,
@@ -85,8 +86,86 @@ fn main() -> Result<()> {
             if let Some(_) = github_token {
                 println!("(GitHub token provided for elevated rate limits)");
             }
+            
+            let baseline_profile = scanner::scan_apk(baseline, github_token.as_ref())?;
+            let current_profile = scanner::scan_apk(current, github_token.as_ref())?;
+            print_diff_report(&baseline_profile, &current_profile);
         }
     }
 
     Ok(())
+}
+
+fn print_report(profile: &crate::models::AppRiskProfile) {
+    println!("\n=== Composite Risk Scores ===");
+    if profile.sdks.is_empty() {
+        println!("No known SDKs detected.");
+    } else {
+        for sdk in &profile.sdks {
+            println!("- {} (Score: {}/100)", sdk.name, sdk.risk_score);
+            if !sdk.cves.is_empty() { println!("    * CVEs: {}", sdk.cves.len()); }
+            if sdk.maintenance_status != crate::models::MaintenanceStatus::Active && sdk.maintenance_status != crate::models::MaintenanceStatus::Unknown {
+                println!("    * Health: {:?}", sdk.maintenance_status);
+            }
+            if !sdk.permission_creep_flags.is_empty() { println!("    * Scope Creep: {} flags", sdk.permission_creep_flags.len()); }
+            if !sdk.suspicious_binary_imports.is_empty() || !sdk.packed_binaries.is_empty() { println!("    * Native Binary Risks Detected"); }
+            if !sdk.malicious_endpoints.is_empty() { println!("    * Malicious Endpoints: {}", sdk.malicious_endpoints.len()); }
+        }
+    }
+    if !profile.global_malicious_endpoints.is_empty() {
+        println!("\n[!] Blocklisted Endpoints found globally: {:?}", profile.global_malicious_endpoints);
+    }
+    
+    println!("-----------------------------");
+    println!("Overall App Risk Score: {}/100", profile.total_risk_score);
+    println!("=============================\n");
+}
+
+fn print_diff_report(baseline: &crate::models::AppRiskProfile, current: &crate::models::AppRiskProfile) {
+    println!("\n=== Supply-Chain Drift Report ===");
+    println!("Baseline: {}", baseline.app_path);
+    println!("Current:  {}", current.app_path);
+    println!("---------------------------------");
+    
+    use std::collections::HashSet;
+    let b_sdks: HashSet<_> = baseline.sdks.iter().map(|s| s.name.clone()).collect();
+    let c_sdks: HashSet<_> = current.sdks.iter().map(|s| s.name.clone()).collect();
+    
+    let added: Vec<_> = c_sdks.difference(&b_sdks).collect();
+    let removed: Vec<_> = b_sdks.difference(&c_sdks).collect();
+    
+    if !added.is_empty() {
+        println!("[!] Newly Added SDKs:");
+        for s in &added { println!("  + {}", s); }
+    }
+    if !removed.is_empty() {
+        println!("[i] Removed SDKs:");
+        for s in &removed { println!("  - {}", s); }
+    }
+    
+    let mut drift_found = false;
+    for c_sdk in &current.sdks {
+        if let Some(b_sdk) = baseline.sdks.iter().find(|s| s.name == c_sdk.name) {
+            if c_sdk.risk_score > b_sdk.risk_score {
+                println!("[!] Risk Increased for {}: {} -> {}", c_sdk.name, b_sdk.risk_score, c_sdk.risk_score);
+                drift_found = true;
+            } else if c_sdk.risk_score < b_sdk.risk_score {
+                println!("[i] Risk Decreased for {}: {} -> {}", c_sdk.name, b_sdk.risk_score, c_sdk.risk_score);
+                drift_found = true;
+            }
+        }
+    }
+    
+    let b_perms: HashSet<_> = baseline.global_permissions.iter().cloned().collect();
+    let c_perms: HashSet<_> = current.global_permissions.iter().cloned().collect();
+    let added_perms: Vec<_> = c_perms.difference(&b_perms).collect();
+    if !added_perms.is_empty() {
+        println!("\n[!] New Sensitive Permissions Requested:");
+        for p in &added_perms { println!("  + {}", p); }
+    }
+    
+    if added.is_empty() && removed.is_empty() && !drift_found && added_perms.is_empty() {
+        println!("No supply-chain risk drift detected.");
+    }
+    println!("=================================\n");
 }
