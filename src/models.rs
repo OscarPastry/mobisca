@@ -19,7 +19,7 @@ pub struct RiskConfig {
     pub weights: RiskWeights,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CveSignal {
     pub id: String,
     pub severity: String,

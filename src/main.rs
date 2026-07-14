@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 mod scanner;
 mod models;
+mod osv;
 
 /// Mobile SDK Supply-Chain Risk Scanner
 #[derive(Parser)]

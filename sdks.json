@@ -5,49 +5,56 @@
       "name": "Firebase Core",
       "vendor": "Google",
       "category": "Analytics/Backend",
-      "github_repo": "firebase/firebase-android-sdk"
+      "github_repo": "firebase/firebase-android-sdk",
+      "maven_package": "com.google.firebase:firebase-common"
     },
     {
       "namespace": "com.google.android.gms",
       "name": "Google Play Services",
       "vendor": "Google",
       "category": "Platform",
-      "github_repo": null
+      "github_repo": null,
+      "maven_package": "com.google.android.gms:play-services-basement"
     },
     {
       "namespace": "com.facebook.ads",
       "name": "Facebook Audience Network",
       "vendor": "Meta",
       "category": "Ads",
-      "github_repo": null
+      "github_repo": null,
+      "maven_package": "com.facebook.android:audience-network-sdk"
     },
     {
       "namespace": "com.appsflyer",
       "name": "AppsFlyer",
       "vendor": "AppsFlyer",
       "category": "Analytics",
-      "github_repo": "AppsFlyerSDK/AppsFlyerFramework"
+      "github_repo": "AppsFlyerSDK/AppsFlyerFramework",
+      "maven_package": "com.appsflyer:af-android-sdk"
     },
     {
       "namespace": "com.squareup.okhttp",
       "name": "OkHttp",
       "vendor": "Square",
       "category": "Networking",
-      "github_repo": "square/okhttp"
+      "github_repo": "square/okhttp",
+      "maven_package": "com.squareup.okhttp3:okhttp"
     },
     {
       "namespace": "com.mixpanel.android",
       "name": "Mixpanel",
       "vendor": "Mixpanel",
       "category": "Analytics",
-      "github_repo": "mixpanel/mixpanel-android"
+      "github_repo": "mixpanel/mixpanel-android",
+      "maven_package": "com.mixpanel.android:mixpanel-android"
     },
     {
       "namespace": "io.sentry",
       "name": "Sentry",
       "vendor": "Sentry",
       "category": "Crash Reporting",
-      "github_repo": "getsentry/sentry-java"
+      "github_repo": "getsentry/sentry-java",
+      "maven_package": "io.sentry:sentry-android"
     }
   ]
 }

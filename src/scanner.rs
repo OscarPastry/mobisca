@@ -12,6 +12,7 @@ pub struct SdkDef {
     pub vendor: String,
     pub category: String,
     pub github_repo: Option<String>,
+    pub maven_package: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -60,16 +61,25 @@ pub fn process_apk(apk_path: &Path) -> Result<()> {
         }
     }
     
-    println!("\n--- Detected SDKs ---");
+    println!("\n--- Detected SDKs & CVEs ---");
     if found_sdks.is_empty() {
         println!("No known SDKs detected.");
     } else {
         for sdk_name in found_sdks {
             let sdk = config.sdks.iter().find(|s| s.name == sdk_name).unwrap();
-            println!("- {} (Vendor: {}, Namespace: {})", sdk.name, sdk.vendor, sdk.namespace);
+            let mut cves_text = String::new();
+            
+            if let Some(pkg) = &sdk.maven_package {
+                let cves = crate::osv::lookup_vulnerabilities(pkg);
+                if !cves.is_empty() {
+                    cves_text = format!(" [{} known CVEs]", cves.len());
+                }
+            }
+
+            println!("- {}{} (Namespace: {})", sdk.name, cves_text, sdk.namespace);
         }
     }
-    println!("---------------------");
+    println!("----------------------------");
 
     Ok(())
 }
