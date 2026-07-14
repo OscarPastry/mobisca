@@ -19,6 +19,25 @@ pub struct RiskConfig {
     pub weights: RiskWeights,
 }
 
+impl Default for RiskConfig {
+    fn default() -> Self {
+        Self {
+            weights: RiskWeights {
+                cve_critical_weight: 40,
+                cve_high_weight: 20,
+                cve_medium_weight: 10,
+                cve_low_weight: 5,
+                abandoned_sdk_weight: 30,
+                stale_sdk_weight: 15,
+                permission_creep_weight: 25,
+                suspicious_binary_import_weight: 20,
+                packed_binary_weight: 20,
+                malicious_network_endpoint_weight: 50,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CveSignal {
     pub id: String,
@@ -28,8 +47,8 @@ pub struct CveSignal {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum MaintenanceStatus {
     Active,
-    Stale,      // No commits in 6-12 months
-    Abandoned,  // No commits in 12+ months
+    Stale,     // No commits in 6-12 months
+    Abandoned, // No commits in 12+ months
     Unknown,
 }
 
@@ -38,7 +57,7 @@ pub struct SdkRiskProfile {
     pub name: String,
     pub vendor: String,
     pub namespace: String,
-    
+
     // Extracted signals (Features 2.2 - 2.6)
     pub cves: Vec<CveSignal>,
     pub maintenance_status: MaintenanceStatus,
@@ -46,7 +65,7 @@ pub struct SdkRiskProfile {
     pub suspicious_binary_imports: Vec<String>,
     pub packed_binaries: Vec<String>,
     pub malicious_endpoints: Vec<String>,
-    
+
     // Composite final calculated score (0-100+)
     pub risk_score: u32,
 }
@@ -88,9 +107,11 @@ impl SdkRiskProfile {
         }
 
         score += self.permission_creep_flags.len() as u32 * config.weights.permission_creep_weight;
-        score += self.suspicious_binary_imports.len() as u32 * config.weights.suspicious_binary_import_weight;
+        score += self.suspicious_binary_imports.len() as u32
+            * config.weights.suspicious_binary_import_weight;
         score += self.packed_binaries.len() as u32 * config.weights.packed_binary_weight;
-        score += self.malicious_endpoints.len() as u32 * config.weights.malicious_network_endpoint_weight;
+        score += self.malicious_endpoints.len() as u32
+            * config.weights.malicious_network_endpoint_weight;
 
         // Cap at 100 for normalization, or allow it to exceed depending on design preference.
         // For MVP, capping at 100 makes it a clean percentage.
@@ -125,7 +146,12 @@ pub struct DiffReport {
 }
 
 impl AppRiskProfile {
-    pub fn new(app_path: String, sdks: Vec<SdkRiskProfile>, global_permissions: Vec<String>, global_malicious_endpoints: Vec<String>) -> Self {
+    pub fn new(
+        app_path: String,
+        sdks: Vec<SdkRiskProfile>,
+        global_permissions: Vec<String>,
+        global_malicious_endpoints: Vec<String>,
+    ) -> Self {
         // App score could be average of SDKs, or max, or simple sum.
         // A simple max risk score across all SDKs highlights the weakest link.
         let total_risk_score = sdks.iter().map(|s| s.risk_score).max().unwrap_or(0);

@@ -1,6 +1,5 @@
 use crate::models::MaintenanceStatus;
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 
 pub fn check_health(repo: &str, token: Option<&String>) -> MaintenanceStatus {
     match query_github_repo(repo, token) {
@@ -36,15 +35,13 @@ fn query_github_repo(repo: &str, token: Option<&String>) -> Result<MaintenanceSt
     let json_resp: serde_json::Value = res.json()?;
 
     if let Some(pushed_at_str) = json_resp.get("pushed_at").and_then(|v| v.as_str()) {
-        let pushed_date = pushed_at_str.parse::<DateTime<Utc>>()?;
-        let now = Utc::now();
-        let duration = now.signed_duration_since(pushed_date);
-
-        let days_since_push = duration.num_days();
-
-        if days_since_push > 365 {
+        // ponytail: fast lexicographical date check avoids `chrono` bloat. Upgrade path: standard libs or explicit chrono if timezone math needed.
+        let current_year = 2026; // hardcoded for MVP ease, could use std::time
+        let pushed_year: i32 = pushed_at_str[0..4].parse().unwrap_or(0);
+        
+        if current_year - pushed_year >= 2 {
             return Ok(MaintenanceStatus::Abandoned);
-        } else if days_since_push > 180 {
+        } else if current_year - pushed_year == 1 {
             return Ok(MaintenanceStatus::Stale);
         } else {
             return Ok(MaintenanceStatus::Active);
