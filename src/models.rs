@@ -25,7 +25,7 @@ pub struct CveSignal {
     pub severity: String,
 }
 
-#[derive(Debug, Serialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum MaintenanceStatus {
     Active,
     Stale,      // No commits in 6-12 months
@@ -33,7 +33,7 @@ pub enum MaintenanceStatus {
     Unknown,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SdkRiskProfile {
     pub name: String,
     pub vendor: String,
@@ -98,13 +98,30 @@ impl SdkRiskProfile {
     }
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppRiskProfile {
     pub app_path: String,
     pub sdks: Vec<SdkRiskProfile>,
     pub total_risk_score: u32,
     pub global_permissions: Vec<String>,
     pub global_malicious_endpoints: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct RiskDrift {
+    pub sdk_name: String,
+    pub baseline_score: u32,
+    pub current_score: u32,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct DiffReport {
+    pub baseline_apk: String,
+    pub current_apk: String,
+    pub added_sdks: Vec<String>,
+    pub removed_sdks: Vec<String>,
+    pub risk_score_changes: Vec<RiskDrift>,
+    pub added_sensitive_permissions: Vec<String>,
 }
 
 impl AppRiskProfile {

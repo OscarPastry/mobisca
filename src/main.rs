@@ -59,16 +59,16 @@ fn main() -> Result<()> {
 
     match &cli.command {
         Commands::Scan { apk_path, json, github_token } => {
-            println!("Scanning APK at: {:?}", apk_path);
-            if *json {
-                println!("(JSON output mode enabled)");
-            }
-            if let Some(_) = github_token {
-                println!("(GitHub token provided for elevated rate limits)");
-            }
-
             let profile = scanner::scan_apk(apk_path, github_token.as_ref())?;
-            print_report(&profile);
+            if *json {
+                println!("{}", serde_json::to_string_pretty(&profile)?);
+            } else {
+                println!("Scanning APK at: {:?}", apk_path);
+                if let Some(_) = github_token {
+                    println!("(GitHub token provided for elevated rate limits)");
+                }
+                print_report(&profile);
+            }
         }
         Commands::Diff {
             baseline,
@@ -76,20 +76,19 @@ fn main() -> Result<()> {
             json,
             github_token,
         } => {
-            println!(
-                "Diffing baseline: {:?} against current: {:?}",
-                baseline, current
-            );
-            if *json {
-                println!("(JSON output mode enabled)");
-            }
-            if let Some(_) = github_token {
-                println!("(GitHub token provided for elevated rate limits)");
-            }
-            
             let baseline_profile = scanner::scan_apk(baseline, github_token.as_ref())?;
             let current_profile = scanner::scan_apk(current, github_token.as_ref())?;
-            print_diff_report(&baseline_profile, &current_profile);
+            
+            if *json {
+                let report = build_diff_report(&baseline_profile, &current_profile);
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                println!("Diffing baseline: {:?} against current: {:?}", baseline, current);
+                if let Some(_) = github_token {
+                    println!("(GitHub token provided for elevated rate limits)");
+                }
+                print_diff_report(&baseline_profile, &current_profile);
+            }
         }
     }
 
@@ -168,4 +167,39 @@ fn print_diff_report(baseline: &crate::models::AppRiskProfile, current: &crate::
         println!("No supply-chain risk drift detected.");
     }
     println!("=================================\n");
+}
+
+fn build_diff_report(baseline: &crate::models::AppRiskProfile, current: &crate::models::AppRiskProfile) -> crate::models::DiffReport {
+    use std::collections::HashSet;
+    let b_sdks: HashSet<_> = baseline.sdks.iter().map(|s| s.name.clone()).collect();
+    let c_sdks: HashSet<_> = current.sdks.iter().map(|s| s.name.clone()).collect();
+    
+    let added_sdks = c_sdks.difference(&b_sdks).cloned().collect();
+    let removed_sdks = b_sdks.difference(&c_sdks).cloned().collect();
+    
+    let mut risk_score_changes = Vec::new();
+    for c_sdk in &current.sdks {
+        if let Some(b_sdk) = baseline.sdks.iter().find(|s| s.name == c_sdk.name) {
+            if c_sdk.risk_score != b_sdk.risk_score {
+                risk_score_changes.push(crate::models::RiskDrift {
+                    sdk_name: c_sdk.name.clone(),
+                    baseline_score: b_sdk.risk_score,
+                    current_score: c_sdk.risk_score,
+                });
+            }
+        }
+    }
+    
+    let b_perms: HashSet<_> = baseline.global_permissions.iter().cloned().collect();
+    let c_perms: HashSet<_> = current.global_permissions.iter().cloned().collect();
+    let added_sensitive_permissions = c_perms.difference(&b_perms).cloned().collect();
+
+    crate::models::DiffReport {
+        baseline_apk: baseline.app_path.clone(),
+        current_apk: current.app_path.clone(),
+        added_sdks,
+        removed_sdks,
+        risk_score_changes,
+        added_sensitive_permissions,
+    }
 }
