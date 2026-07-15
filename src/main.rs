@@ -12,7 +12,7 @@ mod network;
 
 /// Mobile SDK Supply-Chain Risk Scanner
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(name = "mobisca", author, version, about, long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
