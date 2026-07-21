@@ -94,7 +94,7 @@ impl SdkRiskProfile {
             score += match cve.severity.to_lowercase().as_str() {
                 "critical" => config.weights.cve_critical_weight,
                 "high" => config.weights.cve_high_weight,
-                "medium" => config.weights.cve_medium_weight,
+                "medium" | "moderate" => config.weights.cve_medium_weight,
                 "low" => config.weights.cve_low_weight,
                 _ => config.weights.cve_medium_weight,
             };
