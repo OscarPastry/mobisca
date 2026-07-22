@@ -19,7 +19,7 @@ Mobisca is a command-line tool designed to analyze Android APKs for supply-chain
 Ensure you have [Rust and Cargo](https://rustup.rs/) installed. Then, clone the repository and build the project:
 
 ```bash
-git clone <repository_url>
+git clone https://github.com/OscarPastry/mobisca
 cd mobile-risk-scanner
 cargo build --release
 ```
