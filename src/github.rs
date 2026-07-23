@@ -35,9 +35,17 @@ fn query_github_repo(repo: &str, token: Option<&String>) -> Result<MaintenanceSt
     let json_resp: serde_json::Value = res.json()?;
 
     if let Some(pushed_at_str) = json_resp.get("pushed_at").and_then(|v| v.as_str()) {
-        // ponytail: fast lexicographical date check avoids `chrono` bloat. Upgrade path: standard libs or explicit chrono if timezone math needed.
-        let current_year = 2026; // hardcoded for MVP ease, could use std::time
-        let pushed_year: i32 = pushed_at_str[0..4].parse().unwrap_or(0);
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let current_year = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| 1970 + (d.as_secs() / 31_536_000)) // rough year approximation
+            .unwrap_or(2026) as i32;
+        
+        let pushed_year: i32 = if pushed_at_str.len() >= 4 {
+            pushed_at_str[0..4].parse().unwrap_or(0)
+        } else {
+            0
+        };
         
         if current_year - pushed_year >= 2 {
             return Ok(MaintenanceStatus::Abandoned);

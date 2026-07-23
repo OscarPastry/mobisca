@@ -37,7 +37,9 @@ pub fn scan_apk(apk_path: &Path, github_token: Option<&String>) -> Result<AppRis
     let mut global_ips = std::collections::HashSet::new();
 
     // 2. Parse AXML (ensure it's valid)
-    let _ = rusty_axml::parse_from_apk(apk_path);
+    if let Err(e) = rusty_axml::parse_from_apk(apk_path) {
+        eprintln!("Warning: Failed to parse AXML via rusty_axml: {}", e);
+    }
 
     let file = File::open(apk_path).context("Failed to open APK file")?;
     let mut archive = ZipArchive::new(file).context("Failed to read ZIP archive")?;
@@ -77,7 +79,7 @@ pub fn scan_apk(apk_path: &Path, github_token: Option<&String>) -> Result<AppRis
             let (dex_urls, dex_ips) = crate::network::extract_network_strings(&dex_bytes);
             global_urls.extend(dex_urls);
             global_ips.extend(dex_ips);
-        } else if file.name().ends_with(".so") && file.name().contains("lib/") {
+        } else if file.name().ends_with(".so") && file.name().starts_with("lib/") {
             let mut so_bytes = Vec::new();
             file.read_to_end(&mut so_bytes)?;
             if let Some(res) = crate::elf_triage::triage_elf(file.name().to_string(), &so_bytes) {
