@@ -19,10 +19,17 @@ pub fn get_sensitive_permissions_in_app(manifest_bytes: &[u8]) -> HashSet<String
     let mut found = HashSet::new();
     
     // Convert binary XML to lossy string to extract string pool entries
-    let raw_text = String::from_utf8_lossy(manifest_bytes);
+    let raw_text_utf8 = String::from_utf8_lossy(manifest_bytes);
+    
+    // Also convert to UTF-16LE lossy since AXML often uses it for strings
+    let u16_chars: Vec<u16> = manifest_bytes
+        .chunks_exact(2)
+        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .collect();
+    let raw_text_utf16 = String::from_utf16_lossy(&u16_chars);
     
     for &perm in SENSITIVE_PERMISSIONS {
-        if raw_text.contains(perm) {
+        if raw_text_utf8.contains(perm) || raw_text_utf16.contains(perm) {
             found.insert(perm.to_string());
         }
     }
